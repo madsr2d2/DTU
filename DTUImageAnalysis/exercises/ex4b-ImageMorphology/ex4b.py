@@ -1,15 +1,19 @@
 from skimage.morphology import erosion, dilation, opening, closing
-from skimage.morphology import disk
+from skimage.morphology import disk, square
 import matplotlib.pyplot as plt
 import argparse
 from skimage import io
 from skimage.filters import threshold_otsu
+from skimage.morphology import disk, erosion, dilation, closing, opening
+from skimage.exposure import equalize_adapthist
+from skimage.segmentation import find_boundaries
+import numpy as np
 
 dataDir = "/home/madsrichardt/DTU/DTUImageAnalysis/exercises/ex4b-ImageMorphology/data/"
 
 
 def plot_comparison(original, filtered, filter_name):
-    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 4), sharex=True, sharey=True)
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(24, 12), sharex=True, sharey=True)
     ax1.imshow(original, cmap=plt.cm.gray)
     ax1.set_title("original")
     ax1.axis("off")
@@ -19,13 +23,83 @@ def plot_comparison(original, filtered, filter_name):
     io.show()
 
 
+def plotImageHistogram(grayScaleImage):
+    plt.figure()  # Create a new figure
+    plt.hist(grayScaleImage.ravel(), bins=256, range=(0, 1), fc="k", ec="k")
+    plt.title("Histogram")
+    plt.xlabel("Pixel Intensity")
+    plt.ylabel("Frequency")
+    plt.show()
+
+
 def ex1():
     imgName = "lego_5.png"
     imgPath = dataDir + imgName
     imgOrg = io.imread(imgPath, as_gray=True)
     otzuThreshold = threshold_otsu(imgOrg)
-    imgBin = imgOrg > otzuThreshold
+    imgBin = imgOrg < otzuThreshold
     plot_comparison(imgOrg, imgBin, "Binary image")
+
+
+def ex2():
+    footprint = disk(7)
+    print(footprint)
+
+    # Load image
+    imgName = "lego_5.png"
+    imgPath = dataDir + imgName
+    imgOrg = io.imread(imgPath, as_gray=True)
+
+    # Equalize image
+    # imgOrgEq = equalize_adapthist(imgOrg)
+    # plotImageHistogram(imgOrg)
+    # plotImageHistogram(imgOrgEq)
+
+    # Find threshold and convert image to binary
+    # The Histogram equalization does not improve the result so don't use
+    otzuThreshold = threshold_otsu(imgOrg)
+    imgBin = imgOrg < otzuThreshold
+
+    # Close image
+    imgClose = closing(imgBin, footprint)
+
+    # Open image
+    imgOpen = opening(imgClose, footprint)
+
+    # plot
+    plot_comparison(imgOrg, imgOpen, "Processed image")
+
+
+def ex9():
+    footprint = disk(12)
+    print(footprint)
+
+    # Load image
+    imgName = "puzzle_pieces.png"
+    imgPath = dataDir + imgName
+    imgOrg = io.imread(imgPath, as_gray=True)
+
+    # Equalize image
+    imgOrgEq = equalize_adapthist(imgOrg)
+    plotImageHistogram(imgOrg)
+    plotImageHistogram(imgOrgEq)
+
+    # Find threshold and convert image to binary
+    # The Histogram equalization does not improve the result so don't use
+    otzuThreshold = threshold_otsu(imgOrgEq)
+    imgBin = imgOrgEq < otzuThreshold
+
+    # Close image
+    imgClose = closing(imgBin, footprint)
+
+    # Open image
+    imgOpen = opening(imgClose, footprint)
+
+    # Get boundries
+    boundries = find_boundaries(imgOpen)
+
+    # plot
+    plot_comparison(imgBin, imgOpen, "Processed image")
 
 
 if __name__ == "__main__":
