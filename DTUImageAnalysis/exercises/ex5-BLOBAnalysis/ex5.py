@@ -6,7 +6,8 @@ import math
 from skimage.filters import threshold_otsu
 from skimage import segmentation
 from skimage import measure
-from skimage.color import label2rgb, rgb2gray
+from skimage.color import lab2rgb, label2rgb, rgb2gray
+from skimage.morphology import disk, opening, closing
 import argparse
 
 
@@ -18,7 +19,7 @@ def show_comparison(original, modified, modified_name):
     ax2.imshow(modified)
     ax2.set_title(modified_name)
     ax2.axis("off")
-    io.show()
+    plt.show()
 
 
 dataDir = "/home/madsrichardt/DTU/DTUImageAnalysis/exercises/ex5-BLOBAnalysis/data/"
@@ -31,8 +32,42 @@ def ex1():
     imgGray = rgb2gray(imgOrg)  # Use rgb2gray to convert to grayscale
     imgGray = img_as_float(imgGray)  # Convert to float32
     otsuThreshold = threshold_otsu(imgGray)
-    imgBin = imgGray > otsuThreshold
-    show_comparison(imgOrg, imgBin, "Binary image")
+    imgBin = imgGray < otsuThreshold
+
+    # Ex 2
+    imgBin = segmentation.clear_border(imgBin)
+
+    # Ex 3
+    footprint = disk(5)
+    imgBin = closing(imgBin, footprint)
+    imgBin = opening(imgBin, footprint)
+
+    # Ex 4,5
+    imgBinLables = measure.label(imgBin)
+    # imgBinLables = label2rgb(imgBinLables)
+    # nLables = imgBinLables.max()
+    # print(f"Number of lables: {nLables}")
+
+    # Ex 6
+
+    region_props = measure.regionprops(imgBinLables)
+    print([prop for prop in region_props[1]])
+    areas = np.array([prop.area for prop in region_props])
+    plt.hist(areas, bins=50)
+    plt.show()
+
+    # show_comparison(imgOrg, imgBinLables, "Binary image")
+
+
+def ex2():
+    in_dir = dataDir
+    img_org = io.imread(in_dir + "Sample E2 - U2OS DAPI channel.tiff")
+    # slice to extract smaller image
+    img_small = img_org[700:1200, 900:1400]
+    img_gray = img_as_ubyte(img_small)
+    io.imshow(img_gray, vmin=0, vmax=150)
+    plt.title("DAPI Stained U2OS cell nuclei")
+    io.show()
 
 
 if __name__ == "__main__":

@@ -6,11 +6,13 @@ import plotly.graph_objects as go
 from skimage import data, filters, measure, morphology, io, color
 
 # spyder fix
-import plotly.io as pio 
-pio.renderers.default = 'browser'
+import plotly.io as pio
+
+pio.renderers.default = "browser"
+
 
 def interactive_blobs():
-    in_dir = "data/"
+    in_dir = "/home/madsrichardt/DTU/DTUImageAnalysis/exercises/ex5-BLOBAnalysis/data/"
     im_name = "lego_4_small.png"
 
     img_org = io.imread(in_dir + im_name)
@@ -23,10 +25,10 @@ def interactive_blobs():
     labels = measure.label(mask)
 
     fig = px.imshow(img, binary_string=True)
-    fig.update_traces(hoverinfo='skip') # hover is only for label info
+    fig.update_traces(hoverinfo="skip")  # hover is only for label info
 
     props = measure.regionprops(labels, img)
-    properties = ['area', 'eccentricity', 'perimeter', 'intensity_mean']
+    properties = ["area", "eccentricity", "perimeter", "intensity_mean"]
 
     # For each label, add a filled scatter trace for its contour,
     # and display the properties of the label in the hover of this trace.
@@ -34,17 +36,26 @@ def interactive_blobs():
         label_i = props[index].label
         contour = measure.find_contours(labels == label_i, 0.5)[0]
         y, x = contour.T
-        hoverinfo = ''
+        hoverinfo = ""
         for prop_name in properties:
-            hoverinfo += f'<b>{prop_name}: {getattr(props[index], prop_name):.2f}</b><br>'
-        fig.add_trace(go.Scatter(
-            x=x, y=y, name=label_i,
-            mode='lines', fill='toself', showlegend=False,
-            hovertemplate=hoverinfo, hoveron='points+fills'))
+            hoverinfo += (
+                f"<b>{prop_name}: {getattr(props[index], prop_name):.2f}</b><br>"
+            )
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                name=label_i,
+                mode="lines",
+                fill="toself",
+                showlegend=False,
+                hovertemplate=hoverinfo,
+                hoveron="points+fills",
+            )
+        )
 
     plotly.io.show(fig)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     interactive_blobs()
-
