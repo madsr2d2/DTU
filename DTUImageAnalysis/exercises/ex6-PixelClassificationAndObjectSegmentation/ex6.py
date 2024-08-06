@@ -1,27 +1,10 @@
-from skimage import io, color
-from skimage.morphology import binary_closing, binary_opening
-from skimage.morphology import disk
-import matplotlib.pyplot as plt
 import numpy as np
-from skimage import measure
-from skimage.color import label2rgb
-import pydicom as dicom
+import matplotlib.pyplot as plt
 from scipy.stats import norm
-from scipy.spatial import distance
+from skimage import io
+import pydicom as dicom
 
-
-def show_comparison(original, modified, modified_name):
-    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 4), sharex=True, sharey=True)
-
-    ax1.imshow(original, cmap="gray", vmin=-200, vmax=500)
-    ax1.set_title("Original")
-    ax1.axis("off")
-    ax2.imshow(modified)
-    ax2.set_title(modified_name)
-    ax2.axis("off")
-    io.show()
-
-
+# Load and display the CT image
 dataDir = "data/"
 ct = dicom.read_file(dataDir + "Training.dcm")
 img = ct.pixel_array
@@ -31,10 +14,27 @@ print(img.dtype)
 io.imshow(img, vmin=0, vmax=150, cmap="gray")
 io.show()
 
-spleen_roi = io.imread(dataDir + "SpleenROI.png")
-# convert to boolean image
-spleen_mask = spleen_roi > 0
-spleen_values = img[spleen_mask]
-meanValus = spleen_values.mean()
-spleen_valuesSD = spleen_values.std()
-print(f"mean: {meanValus}, SD: {spleen_valuesSD}")
+# Load and process the spleen ROI
+rois = ["BoneROI.png", "FatROI.png", "LiverROI.png", "KidneyROI.png"]
+
+for elm in rois:
+    roi = io.imread(dataDir + elm)
+    mask = roi > 0
+    values = img[mask]
+    mean = values.mean()
+    sd = values.std()
+    print(f"mean: {mean}, SD: {sd}")
+
+    # Plot the histogram with density and the PDF
+    n, bins, patches = plt.hist(values.ravel(), bins=60, density=True)
+    pdf_spleen = norm.pdf(bins, mean, sd)  # Corrected here
+    plt.plot(bins, pdf_spleen)
+    plt.xlabel("Hounsfield unit")
+    plt.ylabel("Frequency")
+    plt.title(elm)
+    plt.show()
+
+
+def addNumbers(*args):
+    """This function takes any number of arguments and returns their sum."""
+    return sum(args)
