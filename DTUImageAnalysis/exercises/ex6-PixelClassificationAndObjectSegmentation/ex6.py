@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm
+from scipy.stats import levy_stable, norm
 from skimage import io
 import pydicom as dicom
 
@@ -27,14 +27,10 @@ for elm in rois:
 
     # Plot the histogram with density and the PDF
     n, bins, patches = plt.hist(values.ravel(), bins=60, density=True)
-    pdf_spleen = norm.pdf(bins, mean, sd)  # Corrected here
-    plt.plot(bins, pdf_spleen)
+    pdf = norm.pdf(bins, mean, sd)  # Corrected here
+    plt.plot(bins, pdf, label=elm)
     plt.xlabel("Hounsfield unit")
     plt.ylabel("Frequency")
-    plt.title(elm)
-    plt.show()
-
-
-def addNumbers(*args):
-    """This function takes any number of arguments and returns their sum."""
-    return sum(args)
+    # plt.title(elm)
+plt.legend()
+plt.show()
