@@ -224,7 +224,7 @@ def visualize_pca_results(pca, aligned_shapes):
     fig, ax = plt.subplots(
         1, 3, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
     )
-
+    fig.suptitle("Shape analysis", fontsize=FIG_TITLE_SIZE)
     # Plot all shapes and the mean shape on the first subplot
     ax[0, 0].scatter(
         aligned_shapes[:, :, 0], aligned_shapes[:, :, 1], color="gray", alpha=0.5

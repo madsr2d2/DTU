@@ -6,6 +6,18 @@ from skimage.morphology import disk, opening, closing
 import numpy as np
 import pydicom as dicom
 
+from matplotlib.lines import Line2D
+
+FIG_WIDTH = 20
+AXIS_TITLE_SIZE = 16
+FIG_TITLE_SIZE = 30
+LEGEND_SIZE = 14
+
+
+def golden_ratio(width):
+    """Calculate height using the golden ratio."""
+    return width / ((1 + 5**0.5) / 2)
+
 
 def generate_colormap(num_classes):
     return [plt.get_cmap("tab10")(i) for i in range(num_classes)]
@@ -18,73 +30,50 @@ def combine_masks(mask_list, dataDir):
     return combined_mask
 
 
-def overlay_rois_with_labels(mask_list, img, dataDir, colors):
-    img_rgb = np.dstack([img] * 3)  # Convert grayscale to RGB
+def plot_rois_histograms_and_labels(mask_list, img, dataDir, colors, lookup_table):
+    """
+    Plot the image with overlaid ROIs, class histograms with fitted normal distributions,
+    and the labeled image based on the lookup table.
+    """
+    # Convert grayscale image to RGB and rescale intensity
+    img_rgb = np.dstack([img] * 3)
     img_rgb = exposure.rescale_intensity(img_rgb, out_range=(0, 1))
 
+    # Create a labeled image for ROIs
     labeled_img = np.zeros_like(img, dtype=int)
     for i, masks in enumerate(mask_list):
         labeled_img[combine_masks(masks, dataDir)] = i + 1
 
+    # Overlay the ROIs on the RGB image
     for i, color in enumerate(colors[: len(mask_list)]):
-        img_rgb[labeled_img == i + 1] = color[:3]  # Apply the color to each channel
+        img_rgb[labeled_img == i + 1] = color[:3]
 
-    fig, ax = plt.subplots(figsize=(10, 10))
-    ax.imshow(img_rgb)
-    ax.set_title("Image with ROIs")
-    ax.axis("off")
+    # Initialize figure with 1x3 subplots
+    fig, ax = plt.subplots(
+        1, 3, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
+    )
 
+    # Plot the image with overlaid ROIs
+    ax[0, 0].imshow(img_rgb)
+    ax[0, 0].set_title("Image with ROIs", fontsize=AXIS_TITLE_SIZE)
+    ax[0, 0].axis("off")
+
+    # Create a legend for the ROIs
     class_names = [
         "_".join(elm.split("ROI")[0] for elm in masks) for masks in mask_list
     ]
     legend_patches = [
-        plt.Line2D([0], [0], color=color[:3], lw=4)
-        for color in colors[: len(mask_list)]
+        Line2D([0], [0], color=color[:3], lw=4) for color in colors[: len(mask_list)]
     ]
-    plt.legend(
-        legend_patches,
-        class_names,
-        loc="center left",
-        bbox_to_anchor=(1, 0.5),
+    ax[0, 0].legend(
+        handles=legend_patches,
+        labels=class_names,
+        loc="upper right",
         title="Class Labels",
+        fontsize=LEGEND_SIZE,
     )
 
-    plt.show()
-
-
-def label_and_visualize_image(img, lookup_table, colors):
-    labeled_img = np.zeros_like(img, dtype=int)
-    class_name_to_label = {
-        name: idx + 1 for idx, name in enumerate(sorted(set(lookup_table.values())))
-    }
-
-    for val in np.unique(img):
-        if val in lookup_table:
-            labeled_img[img == val] = class_name_to_label[lookup_table[val]]
-
-    fig, axes = plt.subplots(1, 2, figsize=(15, 7))
-    axes[0].imshow(img, cmap="gray")
-    axes[0].set_title("Original Image")
-    axes[0].axis("off")
-
-    unique_classes = np.unique(labeled_img)
-    cmap = ListedColormap(colors[: len(unique_classes)])
-    im = axes[1].imshow(labeled_img, cmap=cmap)
-    axes[1].set_title("Labeled Image")
-    axes[1].axis("off")
-
-    class_names = sorted(set(lookup_table.values()))
-    cbar = plt.colorbar(im, ax=axes[1], ticks=range(1, len(class_names) + 1))
-    cbar.ax.set_yticklabels(class_names)
-
-    plt.show()
-
-    return labeled_img
-
-
-def plot_class_data_and_distributions(mask_list, img, dataDir, colors):
-    plt.figure(figsize=(15, 9))
-
+    # Plot histograms with fitted normal distributions
     for i, masks in enumerate(mask_list):
         combined_mask = combine_masks(masks, dataDir)
         values = img[combined_mask]
@@ -92,7 +81,8 @@ def plot_class_data_and_distributions(mask_list, img, dataDir, colors):
 
         class_name = "_".join(elm.split("ROI")[0] for elm in masks)
         color = colors[i % len(colors)]
-        plt.hist(
+
+        ax[0, 1].hist(
             values.ravel(),
             bins=60,
             density=True,
@@ -103,12 +93,44 @@ def plot_class_data_and_distributions(mask_list, img, dataDir, colors):
 
         x = np.linspace(values.min(), values.max(), 100)
         pdf = norm.pdf(x, mean, sd)
-        plt.plot(x, pdf, color=color, linestyle="--")
+        ax[0, 1].plot(x, pdf, color=color, linestyle="--")
 
-    plt.xlabel("Hounsfield unit")
-    plt.ylabel("Density")
-    plt.legend()
-    plt.title("Histogram and Fitted Normal Distributions of Class Data")
+    ax[0, 1].set_xlabel("Hounsfield unit", fontsize=AXIS_TITLE_SIZE)
+    ax[0, 1].set_ylabel("Density", fontsize=AXIS_TITLE_SIZE)
+    ax[0, 1].legend(fontsize=LEGEND_SIZE)
+    ax[0, 1].set_title(
+        "Histogram and Fitted Normal Distributions", fontsize=AXIS_TITLE_SIZE
+    )
+
+    # Create and plot the labeled image based on the lookup table
+    labeled_img_lookup = np.zeros_like(img, dtype=int)
+    class_name_to_label = {
+        name: idx + 1 for idx, name in enumerate(sorted(set(lookup_table.values())))
+    }
+
+    for val in np.unique(img):
+        if val in lookup_table:
+            labeled_img_lookup[img == val] = class_name_to_label[lookup_table[val]]
+
+    unique_classes = np.unique(labeled_img_lookup)
+    cmap = ListedColormap(colors[: len(unique_classes)])
+    ax[0, 2].imshow(labeled_img_lookup, cmap=cmap)
+    ax[0, 2].set_title("Labeled Image", fontsize=AXIS_TITLE_SIZE)
+
+    # Create a legend for the labeled image
+    legend_patches = [
+        Line2D([0], [0], color=color[:3], lw=4)
+        for color in colors[: len(unique_classes)]
+    ]
+    ax[0, 2].legend(
+        handles=legend_patches,
+        labels=sorted(set(lookup_table.values())),
+        loc="upper right",
+        title="Class Labels",
+        fontsize=LEGEND_SIZE,
+    )
+
+    plt.tight_layout()
     plt.show()
 
 
@@ -178,16 +200,13 @@ def bayesianClassifier(classList, dataDir, img):
 def find_class_bounds(lookup_table, target_class):
     class_values = [val for val, cls in lookup_table.items() if cls == target_class]
 
-    if not class_values:
-        return None
-
     min_value = min(class_values)
     max_value = max(class_values)
 
     return min_value, max_value
 
 
-def spleen_criteria(region):
+def spleen_objective_function(region):
     expected_area = 3457.0
     expected_orientation = -0.38
     expected_eccentricity = 0.91
@@ -197,46 +216,36 @@ def spleen_criteria(region):
     area_std = expected_area * 0.15
     solidity_std = 0.15
 
-    # Orientation score
     orientation_weight = 1.0
     orientation_deviation = np.abs(region.orientation - expected_orientation)
     orientation_score = (
         np.exp(-orientation_deviation / orientation_std) * orientation_weight
     )
 
-    # Eccentricity score
     eccentricity_weight = 1.0
     eccentricity_deviation = np.abs(region.eccentricity - expected_eccentricity)
     eccentricity_score = (
         np.exp(-eccentricity_deviation / eccentricity_std) * eccentricity_weight
     )
 
-    # Size score
     size_weight = 1.0
     size_deviation = np.abs(region.area - expected_area)
     size_score = np.exp(-size_deviation / area_std) * size_weight
 
-    # Solidity score
     solidity_weight = 1.0
-    solidity_deviation = np.abs(
-        region.solidity - expected_solidity
-    )  # Solidity should be close to 1 for compact regions
+    solidity_deviation = np.abs(region.solidity - expected_solidity)
     solidity_score = np.exp(-solidity_deviation / solidity_std) * solidity_weight
 
-    # Combine scores: higher scores are better
     total_score = orientation_score + eccentricity_score + solidity_score + size_score
 
     return total_score
 
 
 def spleen_finder(img_list, lookup_table, disk_size=3):
-    if not isinstance(img_list, list):
-        img_list = [img_list]  # Convert to list if a single image is passed
 
-    fig, axes = plt.subplots(1, len(img_list), figsize=(15, 10))
-
-    if len(img_list) == 1:
-        axes = [axes]  # Ensure axes is iterable when there's only one image
+    fig, ax = plt.subplots(
+        3, len(img_list), figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
+    )
 
     for i, img in enumerate(img_list):
         spleen_min, spleen_max = find_class_bounds(lookup_table, "Spleen")
@@ -253,21 +262,29 @@ def spleen_finder(img_list, lookup_table, disk_size=3):
             print(f"No regions found in image {i+1}.")
             continue
 
-        spleen_blob = max(region_props, key=spleen_criteria)
+        spleen_blob = max(region_props, key=spleen_objective_function)
         spleen_region = label_img == spleen_blob.label
 
         img_rgb = np.dstack([img] * 3)
         img_rgb = exposure.rescale_intensity(img_rgb, out_range=(0, 1))
         img_rgb[spleen_region] = [1, 0, 0]  # Red color for spleen region
 
-        axes[i].imshow(img_rgb)
-        axes[i].set_title(f"Image {i+1}: Spleen Overlay")
-        axes[i].axis("off")
+        ax[0, i].imshow(spleen_estimate, cmap="gray")
+        ax[0, i].set_title(
+            f'Image {i+1}: "Spleen" pixels\n ({spleen_min} - {spleen_max})HU',
+            fontsize=AXIS_TITLE_SIZE,
+        )
+        ax[1, i].imshow(label_img, cmap="gray")
+        ax[1, i].set_title(
+            f"Image {i+1}: Preprocessed image\nClose + Open + Label",
+            fontsize=AXIS_TITLE_SIZE,
+        )
+
+        ax[2, i].imshow(img_rgb)
+        ax[2, i].set_title(f"Image {i+1}: Spleen Overlay", fontsize=AXIS_TITLE_SIZE)
 
     plt.tight_layout()
     plt.show()
-
-    return spleen_region if len(img_list) == 1 else None
 
 
 dataDir = "data/"
@@ -287,8 +304,8 @@ classList = [
 ]
 
 colors = generate_colormap(len(classList))
-overlay_rois_with_labels(classList, img, dataDir, colors)
-plot_class_data_and_distributions(classList, img, dataDir, colors)
 lookup_table = parametricClassifier(classList, dataDir, img)
-label_and_visualize_image(img, lookup_table, colors)
+plot_rois_histograms_and_labels(
+    classList, img, dataDir, colors, lookup_table=lookup_table
+)
 spleen_region = spleen_finder(img_list, lookup_table, disk_size=3)

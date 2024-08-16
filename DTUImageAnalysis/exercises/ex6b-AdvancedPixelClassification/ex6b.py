@@ -26,7 +26,7 @@ T2_values_filtered = ImgT2[mask].ravel()
 
 def ex1_3():
     # Create subplots
-    fig, axs = plt.subplots(3, 3, figsize=(18, 18))
+    fig, axs = plt.subplots(3, 3, figsize=(18, 18), squeeze=False)
 
     # Display T1 image with GM and WM ROIs
     axs[0, 0].imshow(ImgT1, cmap="gray")
