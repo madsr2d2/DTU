@@ -1,3 +1,4 @@
+from skimage.util import img_as_ubyte
 from skimage import io
 import matplotlib.pyplot as plt
 from skimage.morphology import disk
@@ -29,6 +30,7 @@ def golden_ratio(width):
 def filtering(img_name):
 
     img = io.imread(DATA_DIR + img_name, as_gray=True)
+    img = img_as_ubyte(img)
     # mean, median, gaussian with different footprint size
     disk_list = []
     for i in range(3):
