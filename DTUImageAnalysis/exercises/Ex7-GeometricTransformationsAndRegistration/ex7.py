@@ -206,10 +206,10 @@ def align_shapes(shapes):
 
 
 def perform_pca_on_shapes(aligned_shapes):
-    """Perform PCA on aligned shapes."""
+    """Perform PCA on aligned shapes, retaining all principal components."""
     n_shapes, n_landmarks, _ = aligned_shapes.shape
     data_matrix = aligned_shapes.reshape(n_shapes, -1)
-    pca = PCA(n_components=2)
+    pca = PCA()  # Default is to keep all components
     pca.fit(data_matrix)
     return pca
 
@@ -218,58 +218,68 @@ def visualize_pca_results(pca, aligned_shapes):
     """Visualize the PCA results and shape variations."""
     # Reshape the mean shape and PCA components for easier handling
     mean_shape = pca.mean_.reshape(-1, 2)
-    components = pca.components_.reshape(-1, 2, pca.n_components)
+    n_components = pca.n_components_
+    components = pca.components_.reshape(-1, 2, n_components)
 
-    # Create a figure with three subplots
+    # Determine the number of subplots needed
+    n_cols = min(4, n_components + 1)  # Show up to 3 PCs plus the mean shape
+    n_rows = int(np.ceil((n_components + 1) / n_cols))
+
+    # Create a figure with the appropriate number of subplots
     fig, ax = plt.subplots(
-        1, 3, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
+        2, 2, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
     )
-    fig.suptitle("Shape analysis", fontsize=FIG_TITLE_SIZE)
-    # Plot all shapes and the mean shape on the first subplot
-    ax[0, 0].scatter(
-        aligned_shapes[:, :, 0], aligned_shapes[:, :, 1], color="gray", alpha=0.5
-    )
-    ax[0, 0].scatter(
-        mean_shape[:, 0], mean_shape[:, 1], color="red", label="Mean Shape"
-    )
-    ax[0, 0].set_title("Mean Shape with All Shapes", fontsize=AXIS_TITLE_SIZE)
-    ax[0, 0].legend(fontsize=LEGEND_SIZE)
+    fig.suptitle("Shape Analysis", fontsize=FIG_TITLE_SIZE)
 
-    # Plot the variations along the first two principal components
-    for i in range(2):
+    ax = ax.ravel()
+
+    # Plot all shapes and the mean shape on the first subplot
+    ax[0].scatter(
+        aligned_shapes[:, :, 0],
+        aligned_shapes[:, :, 1],
+        color="gray",
+        alpha=0.5,
+        label="Aligned Shapes",
+    )
+    ax[0].scatter(mean_shape[:, 0], mean_shape[:, 1], color="red", label="Mean Shape")
+    ax[0].set_title("Mean Shape with Aligned Shapes", fontsize=AXIS_TITLE_SIZE)
+    ax[0].legend(fontsize=LEGEND_SIZE)
+
+    # Plot the variations along each principal component
+    for i in range(3):
         # Compute the positive and negative variations along the PC
         variation = np.sqrt(pca.explained_variance_[i]) * components[:, :, i]
-        pc_shape_pos = mean_shape + 4 * variation
-        pc_shape_neg = mean_shape - 4 * variation
-
-        # Align the variations back to the mean shape for better comparison
-        _, aligned_pos, _ = procrustes(mean_shape, pc_shape_pos)
-        _, aligned_neg, _ = procrustes(mean_shape, pc_shape_neg)
+        pc_shape_pos = mean_shape + 2 * variation
+        pc_shape_neg = mean_shape - 2 * variation
 
         # Plot the mean shape with the variations
-        ax[0, i + 1].scatter(
+        ax[i + 1].scatter(
             mean_shape[:, 0], mean_shape[:, 1], color="red", label="Mean Shape"
         )
-        ax[0, i + 1].scatter(
-            aligned_pos[:, 0],
-            aligned_pos[:, 1],
+        ax[i + 1].scatter(
+            pc_shape_pos[:, 0],
+            pc_shape_pos[:, 1],
             color="blue",
-            label="Positive Variation",
+            label="Mean + 2sd",
         )
-        ax[0, i + 1].scatter(
-            aligned_neg[:, 0],
-            aligned_neg[:, 1],
+        ax[i + 1].scatter(
+            pc_shape_neg[:, 0],
+            pc_shape_neg[:, 1],
             color="green",
-            label="Negative Variation",
+            label="Mean - 2sd",
         )
 
         # Set the title to include the eigenvalue
         eigenvalue = pca.explained_variance_[i]
-        ax[0, i + 1].set_title(
-            f"PC {i + 1} Shape Variation\nEigenvalue: {eigenvalue:.2f}",
+        ax[i + 1].set_title(
+            f"PC {i + 1} Shape Variation\nEigenvalue: {eigenvalue:.3f}",
             fontsize=AXIS_TITLE_SIZE,
         )
-        ax[0, i + 1].legend(fontsize=LEGEND_SIZE)
+        ax[i + 1].legend(fontsize=LEGEND_SIZE)
+
+    # Hide any unused subplots
+    for j in range(n_components + 1, len(ax)):
+        ax[j].axis("off")
 
     # Adjust the layout to prevent overlap
     plt.tight_layout()

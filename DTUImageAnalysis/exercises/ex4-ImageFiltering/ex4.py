@@ -1,145 +1,138 @@
-import os
-from typing import reveal_type
-import numpy as np
-from scipy.ndimage import correlate, gaussian_filter
 from skimage import io
 import matplotlib.pyplot as plt
-import argparse
-
-from skimage.filters import gaussian
-from skimage.util.dtype import img_as_uint
-
-dataDir = (
-    "/home/madsrichardt/sem4_summer/DTUImageAnalysis/exercises/ex4-ImageFiltering/data/"
+from skimage.morphology import disk
+from skimage.filters.rank import mean
+from skimage.filters import (
+    prewitt_h,
+    prewitt_v,
+    prewitt,
+    threshold_otsu,
+    gaussian,
+    median,
 )
 
+from data.Ex4_VideoImageFiltering import capture_from_camera_and_show_images
 
-def f1():
-    input_img = np.arange(25).reshape(5, 5)
-    print(f"Input image\n{input_img}")
-    weights = np.array([[0, 1, 0], [1, 2, 1], [0, 1, 0]])
-    res_img = correlate(input_img, weights)
-    print(f"\nImage after correlation\n{res_img}")
+# Constants for visualization
+DATA_DIR = "data/"
+FIG_WIDTH = 20
+AXIS_TITLE_SIZE = 20
+FIG_TITLE_SIZE = 30
+LEGEND_SIZE = 14
 
-    # Ex1
-    val = res_img[3][3]
-    print(f"\nValue at pos (3,3) = {val}")
 
-    # Ex2
-    res_img = correlate(input_img, weights, mode="constant", cval=10)
-    print(f"\nImage after correlation, mode=constant\n{res_img}")
+def golden_ratio(width):
+    """Calculate height using the golden ratio."""
+    return width / ((1 + 5**0.5) / 2)
 
-    res_img = correlate(input_img, weights, mode="reflect")
-    print(f"\nImage after correlation, mode=reflect\n{res_img}")
 
-    # Ex3
-    name = "Gaussian.png"
-    imgPath = os.path.join(dataDir, name)
-    print(f"Full path to the image: {imgPath}")
+def filtering(img_name):
 
-    img = io.imread(imgPath, as_gray=True)
+    img = io.imread(DATA_DIR + img_name, as_gray=True)
+    # mean, median, gaussian with different footprint size
+    disk_list = []
+    for i in range(3):
+        disk_list.append(disk((i + 1) * 3))
+    fig, ax = plt.subplots(
+        3, 3, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
+    )
+    fig.suptitle("Image filtering", fontsize=FIG_TITLE_SIZE)
+    for i in range(3):
+        ax[0, i].imshow(mean(img, disk_list[i]), cmap="gray")
+        ax[0, i].set_title(
+            f"Mean filter with disk({(i+1)*3})", fontsize=AXIS_TITLE_SIZE
+        )
 
-    # Create a figure and axis
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+        ax[1, i].imshow(median(img, disk_list[i]), cmap="gray")
+        ax[1, i].set_title(
+            f"Median filter with disk({(i+1)*3})", fontsize=AXIS_TITLE_SIZE
+        )
 
-    # Display the original image
-    ax[0].imshow(img, cmap="gray")
-    ax[0].set_title("Original Image")
-    ax[0].axis("off")
+        ax[2, i].imshow(gaussian(img, sigma=((i + 1) * 3)), cmap="gray")
+        ax[2, i].set_title(
+            f"Gaussian filter with sigma = {(i+1)*3}", fontsize=AXIS_TITLE_SIZE
+        )
 
-    # Two-dimensional filter filled with 1
-    size = 5
-    weights = np.ones((size, size))
-    # Normalize weights
-    weights = weights / np.sum(weights)
-
-    # Apply mean filter
-    imgMeanFilter = correlate(img, weights)
-
-    # Display the filtered image
-    ax[1].imshow(imgMeanFilter, cmap="gray")
-    ax[1].set_title("Filtered Image (Mean Filter)")
-    ax[1].axis("off")
-
-    # Show the plots
+    plt.tight_layout()
     plt.show()
 
 
-# Edge detection
-def f8():
-    from skimage.filters import prewitt_h
-    from skimage.filters import prewitt_v
-    from skimage.filters import prewitt
+def edge_filtering(img_name):
+    img = io.imread(DATA_DIR + img_name, as_gray=True)
 
-    imgName = "donald_1.png"
-    imgPath = dataDir + imgName
-    imgOrg = io.imread(imgPath, as_gray=True)
-    imgPrewitt = prewitt(imgOrg)
-
-    print(
-        f"Max pixel value {max(imgPrewitt.flatten())}\nMin pixel value {min(imgPrewitt.flatten())}"
+    fig, ax = plt.subplots(
+        2, 2, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
     )
+    fig.suptitle("Edge filtering", fontsize=FIG_TITLE_SIZE)
+    ax[0, 0].imshow(img, cmap="gray")
+    ax[0, 0].set_title("Original image", fontsize=AXIS_TITLE_SIZE)
 
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    ax[0, 1].imshow(prewitt_h(img), cmap="gray")
+    ax[0, 1].set_title(r"Image filtered the prewitt_h filter", fontsize=AXIS_TITLE_SIZE)
 
-    ax[0].imshow(imgOrg, cmap="gray")
-    ax[0].set_title("Original Image")
-    ax[0].axis("off")
+    ax[1, 0].imshow(prewitt_v(img), cmap="gray")
+    ax[1, 0].set_title(r"Image filtered the prewitt_v filter", fontsize=AXIS_TITLE_SIZE)
 
-    ax[1].imshow(imgPrewitt, cmap="gray")
-    ax[1].set_title("Image after prewitt filter")
-    ax[1].axis("off")
+    ax[1, 1].imshow(prewitt(img), cmap="gray")
+    ax[1, 1].set_title(r"Image filtered the prewitt filter", fontsize=AXIS_TITLE_SIZE)
 
+    plt.tight_layout()
     plt.show()
 
 
-def f9():
-    from skimage.filters import prewitt, gaussian, threshold_otsu, median
-    from skimage import exposure
-    from skimage.morphology import disk, square
+def edge_filtering1(img_name, filter_type=0):
+    img = io.imread(DATA_DIR + img_name, as_gray=True)
 
-    imgName = "ElbowCTSlice.png"
-    imgPath = dataDir + imgName
-    imgOrg = io.imread(imgPath, as_gray=True)
-
-    imgEq = exposure.equalize_hist(imgOrg)
-    imgFiltered = median(imgEq, disk(3))
-    imgPrewitt = prewitt(imgFiltered)
-    T_otzu = threshold_otsu(imgPrewitt)
-    imgBin = imgPrewitt > T_otzu
-
-    fig, ax = plt.subplots(2, 2, figsize=(24, 12))
-
-    ax[0][0].imshow(imgOrg, cmap="gray")
-    ax[0][0].set_title("Original Image")
-    ax[0][0].axis("off")
-
-    ax[0][1].imshow(imgFiltered, cmap="gray")
-    ax[0][1].set_title("Image after equalize_hist and median filter")
-    ax[0][1].axis("off")
-
-    ax[1][0].imshow(imgPrewitt, cmap="gray")
-    ax[1][0].set_title("Image after prewitt filter")
-    ax[1][0].axis("off")
-
-    ax[1][1].imshow(imgBin, cmap="gray")
-    ax[1][1].set_title("Image after Otsu threshold on Prewitt image")
-    ax[1][1].axis("off")
-
-    plt.show()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run a specific function based on the argument."
-    )
-    parser.add_argument(
-        "func_number", type=int, help="The function number to run (e.g., 1 for f1)."
-    )
-    args = parser.parse_args()
-
-    func_name = f"f{args.func_number}"
-    if func_name in globals():
-        globals()[func_name]()
+    if filter_type == 0:
+        img_filtered = median(img, disk(3))
+    elif filter_type == 1:
+        img_filtered = gaussian(img, sigma=2)
     else:
-        print(f"No function named {func_name} found.")
+        img_filtered = gaussian(img, sigma=2)
+        img_filtered = median(img_filtered, disk(3))
+
+    img_gradients = prewitt(img_filtered)
+    T = threshold_otsu(img_gradients)
+    img_bin = img_gradients > T
+
+    fig, ax = plt.subplots(
+        2, 2, figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
+    )
+    fig.suptitle("Edge filtering", fontsize=FIG_TITLE_SIZE)
+    ax[0, 0].imshow(img, cmap="gray")
+    ax[0, 0].set_title(f"Original image ({img_name})", fontsize=AXIS_TITLE_SIZE)
+
+    ax[0, 1].imshow(img_filtered, cmap="gray")
+    if filter_type == 0:
+        ax[0, 1].set_title(r"Median", fontsize=AXIS_TITLE_SIZE)
+    elif filter_type == 1:
+        ax[0, 1].set_title(r"Gaussian", fontsize=AXIS_TITLE_SIZE)
+    else:
+        ax[0, 1].set_title(r"Gaussian + Median ", fontsize=AXIS_TITLE_SIZE)
+
+    ax[1, 0].imshow(img_gradients, cmap="gray")
+    if filter_type == 0:
+        ax[1, 0].set_title(r"Median + Prewitt ", fontsize=AXIS_TITLE_SIZE)
+    elif filter_type == 1:
+        ax[1, 0].set_title(r"Gaussian + Prewitt ", fontsize=AXIS_TITLE_SIZE)
+    else:
+        ax[1, 0].set_title(r"Gaussian + Median + Prewitte ", fontsize=AXIS_TITLE_SIZE)
+
+    ax[1, 1].imshow(img_bin, cmap="gray")
+    if filter_type == 0:
+        ax[1, 1].set_title(r"Median + Prewitt + Otsu", fontsize=AXIS_TITLE_SIZE)
+    elif filter_type == 1:
+        ax[1, 1].set_title(r"Gaussian + Prewitt + Otsu", fontsize=AXIS_TITLE_SIZE)
+    else:
+        ax[1, 1].set_title(
+            r"Gaussian + Median + Prewitte + Otsu", fontsize=AXIS_TITLE_SIZE
+        )
+
+    plt.tight_layout()
+    plt.show()
+
+
+filtering("car.png")
+edge_filtering("donald_1.png")
+edge_filtering1("ElbowCTSlice.png", filter_type=0)
+capture_from_camera_and_show_images()
