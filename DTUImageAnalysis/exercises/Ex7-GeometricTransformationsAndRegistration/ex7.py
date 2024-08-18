@@ -249,24 +249,28 @@ def visualize_pca_results(pca, aligned_shapes):
     for i in range(3):
         # Compute the positive and negative variations along the PC
         variation = np.sqrt(pca.explained_variance_[i]) * components[:, :, i]
-        pc_shape_pos = mean_shape + 2 * variation
-        pc_shape_neg = mean_shape - 2 * variation
+        pc_shape_pos = mean_shape + 3 * variation
+        pc_shape_neg = mean_shape - 3 * variation
+
+        # Align the PC variations to the mean shape
+        _, aligned_pos, _ = procrustes(mean_shape, pc_shape_pos)
+        _, aligned_neg, _ = procrustes(mean_shape, pc_shape_neg)
 
         # Plot the mean shape with the variations
         ax[i + 1].scatter(
             mean_shape[:, 0], mean_shape[:, 1], color="red", label="Mean Shape"
         )
         ax[i + 1].scatter(
-            pc_shape_pos[:, 0],
-            pc_shape_pos[:, 1],
+            aligned_pos[:, 0],
+            aligned_pos[:, 1],
             color="blue",
-            label="Mean + 2sd",
+            label="Mean + 3sd",
         )
         ax[i + 1].scatter(
-            pc_shape_neg[:, 0],
-            pc_shape_neg[:, 1],
+            aligned_neg[:, 0],
+            aligned_neg[:, 1],
             color="green",
-            label="Mean - 2sd",
+            label="Mean - 3sd",
         )
 
         # Set the title to include the eigenvalue
@@ -276,10 +280,6 @@ def visualize_pca_results(pca, aligned_shapes):
             fontsize=AXIS_TITLE_SIZE,
         )
         ax[i + 1].legend(fontsize=LEGEND_SIZE)
-
-    # Hide any unused subplots
-    for j in range(n_components + 1, len(ax)):
-        ax[j].axis("off")
 
     # Adjust the layout to prevent overlap
     plt.tight_layout()

@@ -16,7 +16,7 @@ from data.Ex4_VideoImageFiltering import capture_from_camera_and_show_images
 
 # Constants for visualization
 DATA_DIR = "data/"
-FIG_WIDTH = 20
+FIG_WIDTH = 21
 AXIS_TITLE_SIZE = 20
 FIG_TITLE_SIZE = 30
 LEGEND_SIZE = 14

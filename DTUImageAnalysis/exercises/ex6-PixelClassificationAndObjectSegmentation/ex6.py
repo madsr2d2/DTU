@@ -1,8 +1,10 @@
+import pickle
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from scipy.stats import norm
-from skimage import io, exposure, measure
+from skimage import io, exposure, measure, color
 from skimage.morphology import disk, opening, closing
+from skimage.filters import median, gaussian
 import numpy as np
 import pydicom as dicom
 
@@ -241,19 +243,70 @@ def spleen_objective_function(region):
     return total_score
 
 
-def spleen_finder(img_list, lookup_table, disk_size=3):
+def generalized_objective_function(region, reference_region, weights=None):
+    """
+    Generalized objective function that scores a region based on its similarity to a reference region.
+
+    Parameters:
+    - region: The candidate region in the image (regionprops object).
+    - reference_region: The reference region with desired attributes (regionprops object or dictionary).
+    - weights: Optional dictionary of weights for each attribute to adjust their importance.
+
+    Returns:
+    - total_score: A score representing how similar the candidate region is to the reference region.
+    """
+
+    # Define a list of attributes to consider (these should exist in both regionprops objects)
+    attributes = [
+        "area",
+        "orientation",
+        "eccentricity",
+        "solidity",
+        "perimeter",
+        "extent",
+        "convex_area",
+        "major_axis_length",
+        "minor_axis_length",
+    ]
+
+    # Set default weights if none are provided
+    if weights is None:
+        weights = {attr: 1.0 for attr in attributes}
+
+    total_score = 0.0
+
+    for attr in attributes:
+        if hasattr(region, attr) and hasattr(reference_region, attr):
+            region_value = getattr(region, attr)
+            reference_value = getattr(reference_region, attr)
+            # Standard deviation can be based on a fraction of the reference value
+            std_dev = 0.15 * reference_value if reference_value != 0 else 1.0
+
+            # Calculate the deviation and score
+            deviation = np.abs(region_value - reference_value)
+            score = np.exp(-deviation / std_dev) * weights.get(attr, 1.0)
+            total_score += score
+
+    return total_score
+
+
+def spleen_finder(img_list, lookup_table):
+    footprint_closing = disk(3)
+    footprint_opening = disk(10)
 
     fig, ax = plt.subplots(
         3, len(img_list), figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
     )
+    best_spleen_blob = None
+    highest_score = -np.inf  # Initialize with a very low score
 
     for i, img in enumerate(img_list):
+
         spleen_min, spleen_max = find_class_bounds(lookup_table, "Spleen")
         spleen_estimate = (img > spleen_min) & (img < spleen_max)
 
-        footprint = disk(disk_size)
-        closed = closing(spleen_estimate, footprint)
-        opened = opening(closed, footprint)
+        closed = closing(spleen_estimate, footprint_closing)
+        opened = opening(closed, footprint_opening)
 
         label_img = measure.label(opened)
         region_props = measure.regionprops(label_img)
@@ -262,8 +315,16 @@ def spleen_finder(img_list, lookup_table, disk_size=3):
             print(f"No regions found in image {i+1}.")
             continue
 
-        spleen_blob = max(region_props, key=spleen_objective_function)
-        spleen_region = label_img == spleen_blob.label
+        # Find the region with the highest score based on the old objective function
+        current_spleen_blob = max(region_props, key=spleen_objective_function)
+        current_score = spleen_objective_function(current_spleen_blob)
+
+        # Update the best spleen blob if the current one has a higher score
+        if current_score > highest_score:
+            best_spleen_blob = current_spleen_blob
+            highest_score = current_score
+
+        spleen_region = label_img == current_spleen_blob.label
 
         img_rgb = np.dstack([img] * 3)
         img_rgb = exposure.rescale_intensity(img_rgb, out_range=(0, 1))
@@ -274,7 +335,7 @@ def spleen_finder(img_list, lookup_table, disk_size=3):
             f'Image {i+1}: "Spleen" pixels\n ({spleen_min} - {spleen_max})HU',
             fontsize=AXIS_TITLE_SIZE,
         )
-        ax[1, i].imshow(label_img, cmap="gray")
+        ax[1, i].imshow(color.label2rgb(label_img))
         ax[1, i].set_title(
             f"Image {i+1}: Preprocessed image\nClose + Open + Label",
             fontsize=AXIS_TITLE_SIZE,
@@ -285,6 +346,61 @@ def spleen_finder(img_list, lookup_table, disk_size=3):
 
     plt.tight_layout()
     plt.show()
+
+    # Return the best spleen blob as the reference region
+    return best_spleen_blob
+
+
+# def spleen_finder(img_list, lookup_table, ref_spleen):
+#     footprint_closing = disk(3)
+#     footprint_opening = disk(10)
+#
+#     fig, ax = plt.subplots(
+#         3, len(img_list), figsize=(FIG_WIDTH, golden_ratio(FIG_WIDTH)), squeeze=False
+#     )
+#
+#     for i, img in enumerate(img_list):
+#
+#         spleen_min, spleen_max = find_class_bounds(lookup_table, "Spleen")
+#         spleen_estimate = (img > spleen_min) & (img < spleen_max)
+#
+#         closed = closing(spleen_estimate, footprint_closing)
+#         opened = opening(closed, footprint_opening)
+#
+#         label_img = measure.label(opened)
+#         region_props = measure.regionprops(label_img)
+#
+#         if not region_props:
+#             print(f"No regions found in image {i+1}.")
+#             continue
+#
+#         # Use the generalized objective function to find the best spleen region
+#         spleen_blob = max(
+#             region_props,
+#             key=lambda region: generalized_objective_function(region, ref_spleen),
+#         )
+#         spleen_region = label_img == spleen_blob.label
+#
+#         img_rgb = np.dstack([img] * 3)
+#         img_rgb = exposure.rescale_intensity(img_rgb, out_range=(0, 1))
+#         img_rgb[spleen_region] = [1, 0, 0]  # Red color for spleen region
+#
+#         ax[0, i].imshow(spleen_estimate, cmap="gray")
+#         ax[0, i].set_title(
+#             f'Image {i+1}: "Spleen" pixels\n ({spleen_min} - {spleen_max})HU',
+#             fontsize=AXIS_TITLE_SIZE,
+#         )
+#         ax[1, i].imshow(color.label2rgb(label_img))
+#         ax[1, i].set_title(
+#             f"Image {i+1}: Preprocessed image\nClose + Open + Label",
+#             fontsize=AXIS_TITLE_SIZE,
+#         )
+#
+#         ax[2, i].imshow(img_rgb)
+#         ax[2, i].set_title(f"Image {i+1}: Spleen Overlay", fontsize=AXIS_TITLE_SIZE)
+#
+#     plt.tight_layout()
+#     plt.show()
 
 
 dataDir = "data/"
@@ -308,4 +424,14 @@ lookup_table = parametricClassifier(classList, dataDir, img)
 plot_rois_histograms_and_labels(
     classList, img, dataDir, colors, lookup_table=lookup_table
 )
-spleen_region = spleen_finder(img_list, lookup_table, disk_size=3)
+
+# with open("spleen_ref.pkl", "rb") as f:
+#     spleen_ref = pickle.load(f)
+
+
+# spleen_finder(img_list, lookup_table, spleen_ref)
+spleen_ref = spleen_finder(img_list, lookup_table)
+
+# Save the spleen reference region to a file
+# with open("spleen_ref.pkl", "wb") as f:
+#     pickle.dump(spleen_ref, f)
