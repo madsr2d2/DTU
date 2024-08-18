@@ -3,8 +3,8 @@ import numpy as np
 import time
 
 # Open a video capture (0 for the default camera)
-camPath = '/home/madsr2d2/test.mp4'
-cap = cv2.VideoCapture(camPath, cv2.CAP_FFMPEG)
+camPath = "testVideo.mp4"
+cap = cv2.VideoCapture(camPath, cv3.CAP_FFMPEG)
 refFrame = None
 T = 50
 
@@ -14,7 +14,7 @@ while True:
     # Read a frame from the video capture
     ret, frame = cap.read()
     if not ret:
-        print('Error reading frame')
+        print("Error reading frame")
         break
 
     # Get the reference frame and convert it to grayscale and float
@@ -39,16 +39,24 @@ while True:
     grayImageUint8 = grayImgAsFloat.astype(np.uint8)
 
     stop = time.time()
-    fps = 1/(stop-start)
-    cv2.putText(grayImageUint8, f'FPS: {fps:.2f}', (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+    fps = 1 / (stop - start)
+    cv2.putText(
+        grayImageUint8,
+        f"FPS: {fps:.2f}",
+        (10, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
 
     # Display the frame
-    cv2.imshow('Frame', grayImageUint8)
-    cv2.imshow('Mask', mask)
+    cv2.imshow("Frame", grayImageUint8)
+    cv2.imshow("Mask", mask)
 
     # Wait for 1 millisecond for a key event
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         # Break the loop if 'q' is pressed
         break
 
